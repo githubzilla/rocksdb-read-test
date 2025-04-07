@@ -1,0 +1,21 @@
+# Build directories
+build/
+cmake-build-debug/
+cmake-build-release/
+
+# Generated database files
+rocksdb_test_db/
+
+# IDE files
+.idea/
+.vscode/
+
+# Compiled binaries
+rocksdb_read_test
+
+# Object files and libraries
+*.o
+*.a
+*.so
+*.dylib
+
