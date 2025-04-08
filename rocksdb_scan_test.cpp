@@ -46,7 +46,7 @@ namespace fs = std::filesystem;
 
 // Configuration parameters
 constexpr size_t NUM_KEYS =
-    100 * 1024 * 1024;             // Number of key-value pairs to insert
+    50 * 1024 * 1024;             // Number of key-value pairs to insert
 constexpr size_t VALUE_SIZE = 128; // Size of each value in bytes
 constexpr int NUM_THREADS = 64;    // Number of threads for parallel scan
 constexpr size_t SCAN_COUNT_PER_THREAD = 100; // Number of scans per thread

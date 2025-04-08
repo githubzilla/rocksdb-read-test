@@ -33,10 +33,10 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <numeric>
 #include <random>
 #include <string>
 #include <thread>
@@ -44,7 +44,7 @@
 
 // Configuration parameters
 const std::string DB_PATH = "./rocksdb_test_db";
-const int NUM_KEYS = 100000000; // 10 million keys
+const int NUM_KEYS = 50000000; // 10 million keys
 const int VALUE_SIZE = 128;     // 128 values
 const int NUM_THREADS = 8;      // Number of threads for concurrent reads
 const int NUM_OPERATIONS_PER_THREAD = 10000; // Operations per thread
@@ -90,8 +90,18 @@ std::string generate_key(int index, int prefix_length = PREFIX_LENGTH) {
  * @brief Create a database and populate it with test data
  */
 std::vector<std::string> setup_database() {
-  // Clean up any existing database
-  rocksdb::DestroyDB(DB_PATH, rocksdb::Options());
+  // Generate random keys and values
+  std::vector<std::string> keys;
+  keys.reserve(NUM_KEYS);
+
+  // is new database
+  bool is_new_db = false;
+
+  if (std::filesystem::exists(DB_PATH)) {
+    std::cout << "Database already exists. Reusing existing database."
+              << std::endl;
+    is_new_db = true;
+  }
 
   // Create database with default options
   rocksdb::Options options;
@@ -114,66 +124,88 @@ std::vector<std::string> setup_database() {
     exit(1);
   }
 
-  std::cout << "Generating " << NUM_KEYS << " key-value pairs..." << std::endl;
-
-  // Generate random keys and values
-  std::vector<std::string> keys;
-  keys.reserve(NUM_KEYS);
-
-  for (int i = 0; i < NUM_KEYS; ++i) {
-    keys.push_back(generate_key(i));
-
-    if (i % 100000 == 0 && i > 0) {
-      std::cout << "Generated " << i << " keys..." << std::endl;
+  if (is_new_db) {
+    std::cout << "Reading existing keys from the database..." << std::endl;
+    // read all keys
+    rocksdb::ReadOptions read_options;
+    rocksdb::Iterator *iter = db->NewIterator(read_options);
+    for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
+      std::string key = iter->key().ToString();
+      keys.push_back(key);
     }
-  }
+    std::cout << "Read " << keys.size() << " keys from the database."
+              << std::endl;
+  } else {
+    std::cout << "Generating " << NUM_KEYS << " key-value pairs..."
+              << std::endl;
 
-  // Insert the key-value pairs using batch writes
-  rocksdb::WriteOptions write_options;
-  write_options.disableWAL = true; // Disable Write-Ahead Logging for speed
-  std::string value = std::string(VALUE_SIZE, 'X');
+    // Iterate all keys in the database
+    for (int i = 0; i < NUM_KEYS; ++i) {
+      keys.push_back(generate_key(i));
 
-  std::cout << "Inserting data into the database using batch writes..."
-            << std::endl;
+      if (i % 100000 == 0 && i > 0) {
+        std::cout << "Generated " << i << " keys..." << std::endl;
+      }
+    }
 
-  // Configure batch size - adjust based on your system memory
-  const int BATCH_SIZE = 10000;
+    // Insert the key-value pairs using batch writes
+    rocksdb::WriteOptions write_options;
+    write_options.disableWAL = true; // Disable Write-Ahead Logging for speed
+    // Generate a random value of specified size
+    std::string value = generate_random_string(VALUE_SIZE);
 
-  for (int i = 0; i < NUM_KEYS; i += BATCH_SIZE) {
+    std::cout << "Inserting data into the database using batch writes..."
+              << std::endl;
+
+    // Configure batch size - adjust based on your system memory
+    const int BATCH_SIZE = 10000;
     rocksdb::WriteBatch batch;
-    int end = std::min(i + BATCH_SIZE, NUM_KEYS);
+    for (int i = 0; i < NUM_KEYS; i += BATCH_SIZE) {
+      int end = std::min(i + BATCH_SIZE, NUM_KEYS);
 
-    for (int j = i; j < end; ++j) {
-      batch.Put(keys[j], value);
+      for (int j = i; j < end; ++j) {
+        batch.Put(keys[j], value);
+      }
+
+      status = db->Write(write_options, &batch);
+
+      if (!status.ok()) {
+        std::cerr << "Failed to write batch starting at index " << i
+                  << ", error: " << status.ToString() << std::endl;
+        exit(1);
+      }
+
+      if (i % 100000 == 0 && i > 0) {
+        std::cout << "Inserted " << i << " key-value pairs..." << std::endl;
+      }
+      batch.Clear(); // Clear the batch for the next set of writes
     }
 
-    status = db->Write(write_options, &batch);
+    if (batch.Count() > 0) {
+      status = db->Write(write_options, &batch);
+      if (!status.ok()) {
+        std::cerr << "Failed to write final batch, error: " << status.ToString()
+                  << std::endl;
+        exit(1);
+      }
+    }
+
+    std::cout << "Database setup completed successfully with " << NUM_KEYS
+              << " keys." << std::endl;
+
+    // Perform manual compaction to optimize read performance
+    std::cout << "Performing manual compaction..." << std::endl;
+    rocksdb::CompactRangeOptions compact_options;
+    compact_options.bottommost_level_compaction =
+        rocksdb::BottommostLevelCompaction::kForce;
+    status = db->CompactRange(compact_options, nullptr, nullptr);
 
     if (!status.ok()) {
-      std::cerr << "Failed to write batch starting at index " << i
-                << ", error: " << status.ToString() << std::endl;
-      exit(1);
+      std::cerr << "Manual compaction failed: " << status.ToString()
+                << std::endl;
+    } else {
+      std::cout << "Manual compaction completed successfully." << std::endl;
     }
-
-    if (i % 100000 == 0 && i > 0) {
-      std::cout << "Inserted " << i << " key-value pairs..." << std::endl;
-    }
-  }
-
-  std::cout << "Database setup completed successfully with " << NUM_KEYS
-            << " keys." << std::endl;
-
-  // Perform manual compaction to optimize read performance
-  std::cout << "Performing manual compaction..." << std::endl;
-  rocksdb::CompactRangeOptions compact_options;
-  compact_options.bottommost_level_compaction =
-      rocksdb::BottommostLevelCompaction::kForce;
-  status = db->CompactRange(compact_options, nullptr, nullptr);
-
-  if (!status.ok()) {
-    std::cerr << "Manual compaction failed: " << status.ToString() << std::endl;
-  } else {
-    std::cout << "Manual compaction completed successfully." << std::endl;
   }
 
   // Shuffle the keys to ensure they are not in order
@@ -272,7 +304,6 @@ uint64_t perform_multiget_reads(rocksdb::DB *db,
 void worker_thread(rocksdb::DB *db, const std::vector<std::string> &keys,
                    int num_ops, bool use_multiget,
                    std::atomic<uint64_t> &duration) {
-
   uint64_t thread_duration;
 
   if (use_multiget) {
@@ -398,6 +429,7 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
+    options.use_direct_reads = true;
 
     double ops_per_sec =
         run_benchmark(options, true, "Multi-Get Optimization", keys);
@@ -409,6 +441,7 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
+    options.use_direct_reads = true;
 
     // Set up the block cache (8MB)
     rocksdb::BlockBasedTableOptions table_options;
@@ -428,6 +461,7 @@ int main() {
     options.statistics = rocksdb::CreateDBStatistics();
     options.prefix_extractor.reset(
         rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
+    options.use_direct_reads = true;
 
     rocksdb::BlockBasedTableOptions table_options;
     table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
@@ -445,6 +479,7 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
+    options.use_direct_reads = true;
 
     std::string cache_size_str =
         std::to_string(cache_size / (1024 * 1024)) + "MB";
@@ -466,6 +501,7 @@ int main() {
     options.statistics = rocksdb::CreateDBStatistics();
     options.prefix_extractor.reset(
         rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
+    options.use_direct_reads = true;
 
     rocksdb::BlockBasedTableOptions table_options;
     table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
@@ -509,7 +545,7 @@ int main() {
   }
 
   // Clean up
-  rocksdb::DestroyDB(DB_PATH, rocksdb::Options());
+  // rocksdb::DestroyDB(DB_PATH, rocksdb::Options());
 
   return 0;
 }
