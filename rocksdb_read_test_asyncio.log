@@ -1,0 +1,94 @@
+RocksDB Read Performance Benchmark
+==================================
+Configuration:
+  Number of keys: 50000000
+  Value size: 128 bytes
+  Number of threads: 8
+  Operations per thread: 10000
+==================================
+Database already exists. Reusing existing database.
+Reading existing keys from the database...
+Read 50000000 keys from the database.
+Running benchmark: Baseline (No Optimizations)...
+----------------------------------------
+Baseline (No Optimizations) Results:
+  Total time: 83.5519 seconds
+  Average thread time: 129.951 ms
+  Average operation latency: 12.9951 us
+  Operations per second: 957.49
+  Block cache hit ratio: 0.42%
+----------------------------------------
+Running benchmark: Multi-Get Optimization...
+----------------------------------------
+Multi-Get Optimization Results:
+  Total time: 82.03 seconds
+  Average thread time: 105.13 ms
+  Average operation latency: 10.51 us
+  Operations per second: 975.25
+  Block cache hit ratio: 0.46%
+----------------------------------------
+Running benchmark: Block Cache (8MB)...
+----------------------------------------
+Block Cache (8MB) Results:
+  Total time: 82.42 seconds
+  Average thread time: 116.10 ms
+  Average operation latency: 11.61 us
+  Operations per second: 970.67
+  Block cache hit ratio: 0.09%
+----------------------------------------
+Running benchmark: Prefix Bloom Filter...
+----------------------------------------
+Prefix Bloom Filter Results:
+  Total time: 81.83 seconds
+  Average thread time: 133.62 ms
+  Average operation latency: 13.36 us
+  Operations per second: 977.59
+  Block cache hit ratio: 0.37%
+----------------------------------------
+Running benchmark: Block Cache Size (64MB)...
+----------------------------------------
+Block Cache Size (64MB) Results:
+  Total time: 81.97 seconds
+  Average thread time: 134.64 ms
+  Average operation latency: 13.46 us
+  Operations per second: 975.98
+  Block cache hit ratio: 0.76%
+----------------------------------------
+Running benchmark: Block Cache Size (256MB)...
+----------------------------------------
+Block Cache Size (256MB) Results:
+  Total time: 83.05 seconds
+  Average thread time: 177.90 ms
+  Average operation latency: 17.79 us
+  Operations per second: 963.23
+  Block cache hit ratio: 1.91%
+----------------------------------------
+Running benchmark: Block Cache Size (1024MB)...
+----------------------------------------
+Block Cache Size (1024MB) Results:
+  Total time: 81.83 seconds
+  Average thread time: 191.35 ms
+  Average operation latency: 19.14 us
+  Operations per second: 977.61
+  Block cache hit ratio: 1.95%
+----------------------------------------
+Running benchmark: Combined Optimizations...
+----------------------------------------
+Combined Optimizations Results:
+  Total time: 84.08 seconds
+  Average thread time: 138.80 ms
+  Average operation latency: 13.88 us
+  Operations per second: 951.45
+  Block cache hit ratio: 1.92%
+----------------------------------------
+
+Benchmark Summary:
+===================
+Baseline                            957.49 ops/sec
+Multi-Get                           975.25 ops/sec (+1.86%)
+Block Cache (8MB)                   970.67 ops/sec (+1.38%)
+Prefix Bloom Filter                 977.59 ops/sec (+2.10%)
+Block Cache Size (64MB)             975.98 ops/sec (+1.93%)
+Block Cache Size (256MB)            963.23 ops/sec (+0.60%)
+Block Cache Size (1024MB)           977.61 ops/sec (+2.10%)
+Combined Optimizations              951.45 ops/sec (-0.63%)

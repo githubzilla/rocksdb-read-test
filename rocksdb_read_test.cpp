@@ -228,6 +228,7 @@ uint64_t perform_random_reads(rocksdb::DB *db,
                               int num_ops) {
   std::uniform_int_distribution<int> dist(0, keys.size() - 1);
   rocksdb::ReadOptions read_options;
+  read_options.async_io = false;
   std::string value;
 
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -261,6 +262,7 @@ uint64_t perform_multiget_reads(rocksdb::DB *db,
                                 int num_ops) {
   std::uniform_int_distribution<int> dist(0, keys.size() - NUM_MULTI_GET);
   rocksdb::ReadOptions read_options;
+  read_options.async_io = false;
 
   auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -429,7 +431,6 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
-    options.use_direct_reads = true;
 
     double ops_per_sec =
         run_benchmark(options, true, "Multi-Get Optimization", keys);
@@ -441,7 +442,6 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
-    options.use_direct_reads = true;
 
     // Set up the block cache (8MB)
     rocksdb::BlockBasedTableOptions table_options;
@@ -461,7 +461,6 @@ int main() {
     options.statistics = rocksdb::CreateDBStatistics();
     options.prefix_extractor.reset(
         rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
-    options.use_direct_reads = true;
 
     rocksdb::BlockBasedTableOptions table_options;
     table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
@@ -479,7 +478,6 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
-    options.use_direct_reads = true;
 
     std::string cache_size_str =
         std::to_string(cache_size / (1024 * 1024)) + "MB";
@@ -501,7 +499,6 @@ int main() {
     options.statistics = rocksdb::CreateDBStatistics();
     options.prefix_extractor.reset(
         rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
-    options.use_direct_reads = true;
 
     rocksdb::BlockBasedTableOptions table_options;
     table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
