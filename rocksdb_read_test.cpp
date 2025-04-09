@@ -47,7 +47,7 @@ const std::string DB_PATH = "./rocksdb_test_db";
 const int NUM_KEYS = 50000000; // 10 million keys
 const int VALUE_SIZE = 128;     // 128 values
 const int NUM_THREADS = 8;      // Number of threads for concurrent reads
-const int NUM_OPERATIONS_PER_THREAD = 10; // Operations per thread
+const int NUM_OPERATIONS_PER_THREAD = 10000; // Operations per thread
 const int PREFIX_LENGTH = 8; // Length of prefix for bloom filter optimization
 const int NUM_MULTI_GET =
     100; // Number of keys to fetch in one multi-get operation
@@ -315,6 +315,9 @@ void worker_thread(rocksdb::DB *db, const std::vector<std::string> &keys,
   }
 
   duration.fetch_add(thread_duration, std::memory_order_relaxed);
+  std::cout << "Thread " << std::this_thread::get_id()
+	    << " completed in " << thread_duration / 1000000.0 << " seconds"
+	    << std::endl;
 }
 
 /**
@@ -347,7 +350,7 @@ double run_benchmark(const rocksdb::Options &options, bool use_multiget,
   auto start_time = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < NUM_THREADS; ++i) {
-    threads.emplace_back(worker_thread, db_raw, keys, NUM_OPERATIONS_PER_THREAD,
+    threads.emplace_back(worker_thread, db_raw, std::ref(keys), NUM_OPERATIONS_PER_THREAD,
                          use_multiget, std::ref(total_duration));
   }
 
@@ -357,12 +360,15 @@ double run_benchmark(const rocksdb::Options &options, bool use_multiget,
   }
 
   auto end_time = std::chrono::high_resolution_clock::now();
-  uint64_t wall_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+  auto wall_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
                               end_time - start_time)
                               .count();
+  std::cout << "Wall time "<< wall_time_us / 1000000.0 << " seconds" << std::endl;
 
   // Calculate statistics
   double avg_thread_time_us = total_duration.load() / NUM_THREADS;
+  std::cout << "Total duration: " << avg_thread_time_us / 1000000.0
+	    << " seconds" << std::endl;
   double avg_latency_us = avg_thread_time_us / NUM_OPERATIONS_PER_THREAD;
   double total_ops = NUM_THREADS * NUM_OPERATIONS_PER_THREAD;
   double ops_per_sec = total_ops / (wall_time_us / 1000000.0);
@@ -420,6 +426,7 @@ int main() {
     rocksdb::Options options;
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
+    options.use_direct_reads = true;
 
     double ops_per_sec =
         run_benchmark(options, false, "Baseline (No Optimizations)", keys);
