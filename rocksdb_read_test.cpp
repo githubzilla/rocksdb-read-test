@@ -427,6 +427,10 @@ int main() {
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
     options.use_direct_reads = true;
+    std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(4 * 1024 * 1024 * 1024);
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.block_cache = cache;
+    options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
     double ops_per_sec =
         run_benchmark(options, false, "Baseline (No Optimizations)", keys);
