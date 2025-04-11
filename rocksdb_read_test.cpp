@@ -435,51 +435,51 @@ int main() {
   }
 
   // 2. Multi-get optimization
-  {
-    rocksdb::Options options;
-    options.create_if_missing = false;
-    options.statistics = rocksdb::CreateDBStatistics();
-
-    double ops_per_sec =
-        run_benchmark(options, true, "Multi-Get Optimization", keys);
-    results.emplace_back("Multi-Get", ops_per_sec);
-  }
+  // {
+  //   rocksdb::Options options;
+  //   options.create_if_missing = false;
+  //   options.statistics = rocksdb::CreateDBStatistics();
+  //
+  //   double ops_per_sec =
+  //       run_benchmark(options, true, "Multi-Get Optimization", keys);
+  //   results.emplace_back("Multi-Get", ops_per_sec);
+  // }
 
   // 3. Block cache optimization
-  {
-    rocksdb::Options options;
-    options.create_if_missing = false;
-    options.statistics = rocksdb::CreateDBStatistics();
-
-    // Set up the block cache (8MB)
-    rocksdb::BlockBasedTableOptions table_options;
-    table_options.block_cache = rocksdb::NewLRUCache(4 * 1024 * 1024 * 1024L);
-    options.table_factory.reset(
-        rocksdb::NewBlockBasedTableFactory(table_options));
-
-    double ops_per_sec =
-        run_benchmark(options, false, "Block Cache (8MB)", keys);
-    results.emplace_back("Block Cache (8MB)", ops_per_sec);
-  }
+  // {
+  //   rocksdb::Options options;
+  //   options.create_if_missing = false;
+  //   options.statistics = rocksdb::CreateDBStatistics();
+  //
+  //   // Set up the block cache (8MB)
+  //   rocksdb::BlockBasedTableOptions table_options;
+  //   table_options.block_cache = rocksdb::NewLRUCache(4 * 1024 * 1024 * 1024L);
+  //   options.table_factory.reset(
+  //       rocksdb::NewBlockBasedTableFactory(table_options));
+  //
+  //   double ops_per_sec =
+  //       run_benchmark(options, false, "Block Cache (8MB)", keys);
+  //   results.emplace_back("Block Cache (8MB)", ops_per_sec);
+  // }
 
   // 4. Prefix bloom filter optimization
-  {
-    rocksdb::Options options;
-    options.create_if_missing = false;
-    options.statistics = rocksdb::CreateDBStatistics();
-    options.prefix_extractor.reset(
-        rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
-
-    rocksdb::BlockBasedTableOptions table_options;
-    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
-    table_options.whole_key_filtering = true;
-    options.table_factory.reset(
-        rocksdb::NewBlockBasedTableFactory(table_options));
-
-    double ops_per_sec =
-        run_benchmark(options, false, "Prefix Bloom Filter", keys);
-    results.emplace_back("Prefix Bloom Filter", ops_per_sec);
-  }
+  // {
+  //   rocksdb::Options options;
+  //   options.create_if_missing = false;
+  //   options.statistics = rocksdb::CreateDBStatistics();
+  //   options.prefix_extractor.reset(
+  //       rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
+  //
+  //   rocksdb::BlockBasedTableOptions table_options;
+  //   table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
+  //   table_options.whole_key_filtering = true;
+  //   options.table_factory.reset(
+  //       rocksdb::NewBlockBasedTableFactory(table_options));
+  //
+  //   double ops_per_sec =
+  //       run_benchmark(options, false, "Prefix Bloom Filter", keys);
+  //   results.emplace_back("Prefix Bloom Filter", ops_per_sec);
+  //}
 
   // 5. Block cache size optimization
   // for (size_t cache_size : BLOCK_CACHE_SIZES) {
@@ -501,24 +501,24 @@ int main() {
   // }
 
   // Combined optimization: Block cache + Bloom filter + Multi-get
-  // {
-  //   rocksdb::Options options;
-  //   options.create_if_missing = false;
-  //   options.statistics = rocksdb::CreateDBStatistics();
-  //   options.prefix_extractor.reset(
-  //       rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
-  //
-  //   rocksdb::BlockBasedTableOptions table_options;
-  //   table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10,
-  //   false)); table_options.block_cache =
-  //       rocksdb::NewLRUCache(256 * 1024 * 1024); // 256MB cache
-  //   options.table_factory.reset(
-  //       rocksdb::NewBlockBasedTableFactory(table_options));
-  //
-  //   double ops_per_sec =
-  //       run_benchmark(options, true, "Combined Optimizations", keys);
-  //   results.emplace_back("Combined Optimizations", ops_per_sec);
-  // }
+  {
+    rocksdb::Options options;
+    options.create_if_missing = false;
+    options.statistics = rocksdb::CreateDBStatistics();
+    options.prefix_extractor.reset(
+        rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
+
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10,
+    false)); table_options.block_cache =
+        rocksdb::NewLRUCache(4 * 1024 * 1024 * 1024L); // 4GB cache
+    options.table_factory.reset(
+        rocksdb::NewBlockBasedTableFactory(table_options));
+
+    double ops_per_sec =
+        run_benchmark(options, true, "Combined Optimizations", keys);
+    results.emplace_back("Combined Optimizations", ops_per_sec);
+  }
 
   // Print summary of results
   std::cout << "\nBenchmark Summary:" << std::endl;
