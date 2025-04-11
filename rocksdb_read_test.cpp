@@ -44,10 +44,10 @@
 
 // Configuration parameters
 const std::string DB_PATH = "./rocksdb_test_db";
-const int NUM_KEYS = 50000000; // 10 million keys
+const int NUM_KEYS = 500000000; // 10 million keys
 const int VALUE_SIZE = 128;     // 128 values
-const int NUM_THREADS = 8;      // Number of threads for concurrent reads
-const int NUM_OPERATIONS_PER_THREAD = 10000; // Operations per thread
+const int NUM_THREADS = 32;     // Number of threads for concurrent reads
+const int NUM_OPERATIONS_PER_THREAD = 5000000; // Operations per thread
 const int PREFIX_LENGTH = 8; // Length of prefix for bloom filter optimization
 const int NUM_MULTI_GET =
     100; // Number of keys to fetch in one multi-get operation
@@ -315,9 +315,8 @@ void worker_thread(rocksdb::DB *db, const std::vector<std::string> &keys,
   }
 
   duration.fetch_add(thread_duration, std::memory_order_relaxed);
-  std::cout << "Thread " << std::this_thread::get_id()
-	    << " completed in " << thread_duration / 1000000.0 << " seconds"
-	    << std::endl;
+  std::cout << "Thread " << std::this_thread::get_id() << " completed in "
+            << thread_duration / 1000000.0 << " seconds" << std::endl;
 }
 
 /**
@@ -350,8 +349,9 @@ double run_benchmark(const rocksdb::Options &options, bool use_multiget,
   auto start_time = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < NUM_THREADS; ++i) {
-    threads.emplace_back(worker_thread, db_raw, std::ref(keys), NUM_OPERATIONS_PER_THREAD,
-                         use_multiget, std::ref(total_duration));
+    threads.emplace_back(worker_thread, db_raw, std::ref(keys),
+                         NUM_OPERATIONS_PER_THREAD, use_multiget,
+                         std::ref(total_duration));
   }
 
   // Wait for threads to finish
@@ -361,14 +361,15 @@ double run_benchmark(const rocksdb::Options &options, bool use_multiget,
 
   auto end_time = std::chrono::high_resolution_clock::now();
   auto wall_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
-                              end_time - start_time)
-                              .count();
-  std::cout << "Wall time "<< wall_time_us / 1000000.0 << " seconds" << std::endl;
+                          end_time - start_time)
+                          .count();
+  std::cout << "Wall time " << wall_time_us / 1000000.0 << " seconds"
+            << std::endl;
 
   // Calculate statistics
   double avg_thread_time_us = total_duration.load() / NUM_THREADS;
   std::cout << "Total duration: " << avg_thread_time_us / 1000000.0
-	    << " seconds" << std::endl;
+            << " seconds" << std::endl;
   double avg_latency_us = avg_thread_time_us / NUM_OPERATIONS_PER_THREAD;
   double total_ops = NUM_THREADS * NUM_OPERATIONS_PER_THREAD;
   double ops_per_sec = total_ops / (wall_time_us / 1000000.0);
@@ -427,10 +428,6 @@ int main() {
     options.create_if_missing = false;
     options.statistics = rocksdb::CreateDBStatistics();
     options.use_direct_reads = true;
-    std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(4 * 1024 * 1024 * 1024);
-    rocksdb::BlockBasedTableOptions table_options;
-    table_options.block_cache = cache;
-    options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
     double ops_per_sec =
         run_benchmark(options, false, "Baseline (No Optimizations)", keys);
@@ -438,51 +435,51 @@ int main() {
   }
 
   // 2. Multi-get optimization
-  // {
-  //   rocksdb::Options options;
-  //   options.create_if_missing = false;
-  //   options.statistics = rocksdb::CreateDBStatistics();
-  //
-  //   double ops_per_sec =
-  //       run_benchmark(options, true, "Multi-Get Optimization", keys);
-  //   results.emplace_back("Multi-Get", ops_per_sec);
-  // }
+  {
+    rocksdb::Options options;
+    options.create_if_missing = false;
+    options.statistics = rocksdb::CreateDBStatistics();
+
+    double ops_per_sec =
+        run_benchmark(options, true, "Multi-Get Optimization", keys);
+    results.emplace_back("Multi-Get", ops_per_sec);
+  }
 
   // 3. Block cache optimization
-  // {
-  //   rocksdb::Options options;
-  //   options.create_if_missing = false;
-  //   options.statistics = rocksdb::CreateDBStatistics();
-  //
-  //   // Set up the block cache (8MB)
-  //   rocksdb::BlockBasedTableOptions table_options;
-  //   table_options.block_cache = rocksdb::NewLRUCache(8 * 1024 * 1024);
-  //   options.table_factory.reset(
-  //       rocksdb::NewBlockBasedTableFactory(table_options));
-  //
-  //   double ops_per_sec =
-  //       run_benchmark(options, false, "Block Cache (8MB)", keys);
-  //   results.emplace_back("Block Cache (8MB)", ops_per_sec);
-  // }
+  {
+    rocksdb::Options options;
+    options.create_if_missing = false;
+    options.statistics = rocksdb::CreateDBStatistics();
+
+    // Set up the block cache (8MB)
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.block_cache = rocksdb::NewLRUCache(4 * 1024 * 1024 * 1024L);
+    options.table_factory.reset(
+        rocksdb::NewBlockBasedTableFactory(table_options));
+
+    double ops_per_sec =
+        run_benchmark(options, false, "Block Cache (8MB)", keys);
+    results.emplace_back("Block Cache (8MB)", ops_per_sec);
+  }
 
   // 4. Prefix bloom filter optimization
-  // {
-  //   rocksdb::Options options;
-  //   options.create_if_missing = false;
-  //   options.statistics = rocksdb::CreateDBStatistics();
-  //   options.prefix_extractor.reset(
-  //       rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
-  //
-  //   rocksdb::BlockBasedTableOptions table_options;
-  //   table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
-  //   table_options.whole_key_filtering = true;
-  //   options.table_factory.reset(
-  //       rocksdb::NewBlockBasedTableFactory(table_options));
-  //
-  //   double ops_per_sec =
-  //       run_benchmark(options, false, "Prefix Bloom Filter", keys);
-  //   results.emplace_back("Prefix Bloom Filter", ops_per_sec);
-  // }
+  {
+    rocksdb::Options options;
+    options.create_if_missing = false;
+    options.statistics = rocksdb::CreateDBStatistics();
+    options.prefix_extractor.reset(
+        rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
+
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
+    table_options.whole_key_filtering = true;
+    options.table_factory.reset(
+        rocksdb::NewBlockBasedTableFactory(table_options));
+
+    double ops_per_sec =
+        run_benchmark(options, false, "Prefix Bloom Filter", keys);
+    results.emplace_back("Prefix Bloom Filter", ops_per_sec);
+  }
 
   // 5. Block cache size optimization
   // for (size_t cache_size : BLOCK_CACHE_SIZES) {
@@ -512,8 +509,8 @@ int main() {
   //       rocksdb::NewFixedPrefixTransform(PREFIX_LENGTH));
   //
   //   rocksdb::BlockBasedTableOptions table_options;
-  //   table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
-  //   table_options.block_cache =
+  //   table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10,
+  //   false)); table_options.block_cache =
   //       rocksdb::NewLRUCache(256 * 1024 * 1024); // 256MB cache
   //   options.table_factory.reset(
   //       rocksdb::NewBlockBasedTableFactory(table_options));
